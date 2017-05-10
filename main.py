@@ -3,6 +3,8 @@ import sys
 import curses
 import nointernet
 import threading
+import warnings
+
 
 def can_connect_to_internet():
     """Read the function title..."""

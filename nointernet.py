@@ -13,12 +13,12 @@ scheduler = sched.scheduler(time.time, time.sleep)
 terminal_on = True # If on we have default terminal; if off we get free mode
 phone_on = False # If on we append random messages to the current_message
 
-def typeout(stdscr, string, y, x, delay=50):
+def typeout(stdscr, string, y, x, delay=0.05):
     i = 0
     for ch in string:
         stdscr.addch(y, x + i, ch)
         i += 1
-        curses.napms(delay)
+        time.sleep(delay)
         stdscr.refresh()
 
 def stop_music():
@@ -47,7 +47,7 @@ def introduction(stdscr):
 
     quest_string = "Contact your local ISP provider to begin resolving the issue."
     typeout(stdscr, quest_string, height // 2, width // 2 - len(quest_string) // 2)
-    curses.napms(1000)
+    time.sleep(1)
 
     end_string = "Based on a true story."
     typeout(stdscr, end_string, height // 2 + 2, width // 2 - len(end_string) // 2)
@@ -62,6 +62,7 @@ def input_validator(key):
 def main(stdscr):
     global terminal_on, phone_on
     # Setup
+    pygame.mixer.init()
     stdscr.clear()
     height, width = stdscr.getmaxyx()
     # introduction(stdscr)
@@ -69,7 +70,6 @@ def main(stdscr):
     # Post introduction setup
     stdscr.nodelay(1)
     curses.noecho()
-    pygame.mixer.init()
 
     # Create text windows
     text_window = curses.newwin(38, 82, height // 2 - 21, width // 2 - 41)
@@ -92,10 +92,10 @@ def main(stdscr):
         if user_input:
             command = user_input.split()
             if command[0] == "exit" or command[0] == "quit":
-                # Quit all recieving input and quit
+                # Quit all event loop
                 running = False
-                get_input = False
-            if terminal_on:
+                break
+            elif terminal_on:
                 if command[0] == "test":
                     start_call()
                     current_message = ["Testing..."]
@@ -151,15 +151,24 @@ def main(stdscr):
             else:
                 current_message.append(user_input)
         if current_message:
-            # TODO ADD HEIGHT PROTECTION
             text_window.erase()
             h = 0
+            lines = [] # Buffer
             for message in current_message:
-                i = 0
                 wrapped_message = textwrap.wrap(message, text_width - 2)
-                for i, line in enumerate(wrapped_message):
-                    text_window.addstr(1 + i + h, 1, line)
-                h += i + 1
+                for line in wrapped_message:
+                    lines.append(line)
+                if not wrapped_message:
+                    lines.append("")
+
+            # Check for overflow
+            if len(lines) > text_height - 2:
+                lines = lines[-(text_height - 2):]
+
+            # Draw buffer to screen
+            for i, line in enumerate(lines):
+                text_window.addstr(1 + i, 1, line)
+
 
         # Draw rectangle
         text_window.border()
