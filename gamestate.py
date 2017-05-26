@@ -9,7 +9,7 @@ class GameState:
     debug = False
 
     # Values
-    days = 1
+    days = 0 # Multiples of 2 (morning and night)
     network_status = "NO CONNECTION"
     flags = set()
 

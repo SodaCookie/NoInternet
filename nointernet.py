@@ -12,6 +12,8 @@ import string
 
 from gamestate import GameState
 from fymediatree import fymediatree
+from neighbourtree import neighbour_norm_tree
+from lookuptable import lookup_table
 
 
 QUOTES = [
@@ -33,6 +35,13 @@ QUOTES = [
     ["Patience is bitter, but its fruit is sweet.", "Aristotle"],
     ["Knowing trees, I understand the meaning of patience.", "Knowing grass, I can appreciate persistence.", "Hal Borland"]
 ]
+
+def set_partial_network():
+    GameState.network_status = "WEAK CONNECTION"
+
+EFFECTS = {
+    "partial" : set_partial_network
+}
 
 def typeout(stdscr, string, y, x, delay=0.05):
     i = 0
@@ -83,18 +92,33 @@ def respond_conversation(index):
     try:
         GameState.conversation_node = node["choices"][index][0]
         GameState.conversation_log.append(node["choices"][index][1])
+        if "flag" in node:
+            GameState.flags.add(node["flag"])
+            if node["flag"] in EFFECTS:
+                EFFECTS[node["flag"]]()
         if GameState.conversation_node == "exit":
             # No more choices, we exit
             GameState.conversation_on = False
             GameState.current_message = [node["choices"][index][1]]
             return False
         else:
-            if "flag" in node:
-                GameState.flags.add(node["flag"])
             step_conversation()
             return True
     except IndexError:
         pass
+
+def test_email(stdscr):
+    success = random.randint(0, 9) < (2 if not GameState.debug else 10) # 20% chance
+    wait(stdscr, ["Connecting to network...", "Loading browser page...", "Opening email...", "SUCCESS" if success else "UNAVAILABLE"])
+    return success
+
+def check_email(stdscr):
+    if "partial" in GameState.flags:
+        if test_email(stdscr):
+            if "setup" in GameState.flags:
+                pass
+    else:
+        GameState.current_message = ["You have no internet to check email."]
 
 def start_call(dialog_tree):
     # Start the music
@@ -178,7 +202,7 @@ def main(stdscr):
                 ]))
             elif GameState.terminal_on:
                 if command[0] == "test" and GameState.debug:
-                    start_conversation(fymediatree)
+                    start_conversation(neighbour_norm_tree)
                     GameState.current_message = GameState.conversation_log
                 elif command[0] == "wait":
                     if not GameState.debug:
@@ -187,45 +211,38 @@ def main(stdscr):
                     GameState.days += 1
                 elif command[0] == "days":
                     GameState.current_message = [
-                        "It's been %d days since you haven't had internet." % GameState.days
+                        "It's been %d days since you haven't had internet." % int(GameState.days / 2)
                     ]
                     sass_quote = None
-                    if GameState.days == 3:
+                    if GameState.days == 6:
                         sass_quote = "Something feels off. You've been disconnected for too long."
                     if sass_quote:
                         GameState.current_message.append(sass_quote)
                 elif command[0] == "back":
                     GameState.current_message = GameState.previous_message
+                elif command[0] == "email":
+                    check_email(stdscr)
+                elif command[0] == "conversation":
+                    if GameState.conversation_on:
+                        GameState.current_message = GameState.conversation_log
+                    else:
+                        GameState.current_message = ["You aren't holding any conversations at the moment."]
                 elif command[0] == "help":
                     GameState.current_message = [
-                        "lookup [thing] - Find out information about a thing",
-                        "call [phone number] - Calls the company.",
-                        "wait - Wait one day.",
-                        "days - Returns number of days past since no internet.",
-                        "back - restore the message that came before.",
-                        "exit/quit - Quit the game.",
+                        "lookup [thing] - Find out information about a thing\n" +
+                        "call [phone number] - Calls the company.\n" +
+                        "wait - Wait one day.\n" +
+                        "days - Returns number of days past since no internet.\n" +
+                        "back - restore the message that came before.\n" +
+                        "exit/quit - Quit the game.\n" +
+                        "email - Check your email (needs internet to function)" +
                         "conversation - Return to the conversation if there is one ongoing"
                     ]
                 elif command[0] == "lookup":
                     if len(command) > 1:
                         query = " ".join(command[1:]).strip()
-                        if query == "fymedia":
-                            GameState.current_message = [
-                                "Luckily you were smart enough to write down the contact info of FYMedia before you didn't have access to internet. Scribbled on the back of a unopenned envelope you see:",
-                                "",
-                                "Phone: (993) 273-6782",
-                                "Website: www.fymediaconnect.com",
-                            ]
-                        elif query == "cux" or query == "cux cable":
-                            GameState.current_message = [
-                                "You recall the website of CUX Cable but don't have the phone number on hand:",
-                                "",
-                                "Website: www.thecuxprovider.com"
-                            ]
-                        elif query == "sodacookie":
-                            GameState.current_message = [
-                                "The God of Curses."
-                            ]
+                        if query in lookup_table:
+                            GameState.current_message = lookup_table[query]
                         else:
                             GameState.current_message = ["You can't seem to recall or find any information on %s." % query]
                     else:
@@ -237,6 +254,14 @@ def main(stdscr):
                         query = query.replace("-", "").replace("(", "").replace(")", "")
                         if query == "9932736782":
                             start_conversation(fymediatree)
+                            GameState.current_message = GameState.conversation_log
+                        elif query == "5662734321":
+                            if "partial" in GameState.flags:
+                                pass
+                            elif "annoyed" in GameState.flags:
+                                pass
+                            else:
+                                start_conversation(neighbour_norm_tree)
                             GameState.current_message = GameState.conversation_log
                         elif query.isnumeric():
                             GameState.current_message = ["The number you have dialed is currently unavailable. Ensure that you have typed the correct number then hangup and redial the number.", "", "The phone display shows '%s'" % query]
@@ -258,7 +283,6 @@ def main(stdscr):
             lines = [] # Buffer
             if GameState.conversation_on:
                 right_justify = False
-                # TODO EXTRACT FOR REFACTOR
                 # Special alternating justifying
                 for message in GameState.current_message:
                     for split_line in message.split("\n"):
@@ -274,11 +298,12 @@ def main(stdscr):
             else:
                 # Default to text
                 for message in GameState.current_message:
-                    wrapped_message = textwrap.wrap(message, text_width - 2)
-                    for line in wrapped_message:
-                        lines.append(line)
-                    if not wrapped_message:
-                        lines.append("")
+                    for split_line in message.split("\n"):
+                        wrapped_message = textwrap.wrap(split_line, text_width - 2)
+                        for line in wrapped_message:
+                            lines.append(line)
+                        if not wrapped_message:
+                            lines.append("")
 
             # Check for overflow
             if len(lines) > text_height - 2:
@@ -294,8 +319,8 @@ def main(stdscr):
 
         # Draw status
         status_window.erase()
-        length = len(GameState.network_status) + len("DAY: %d" % GameState.days)
-        status_string = GameState.network_status + (" " * (79 - length)) + "DAY: %d" % GameState.days
+        length = len(GameState.network_status) + len("DAY: %d [%s]" % (GameState.days // 2 + 1, "MORNING" if not GameState.days % 2 else "EVENING"))
+        status_string = GameState.network_status + (" " * (79 - length)) + "DAY: %d [%s]" % (GameState.days // 2 + 1, "MORNING" if not GameState.days % 2 else "EVENING")
         status_window.addstr(status_string)
 
         # Refresh the windows
