@@ -31,11 +31,11 @@ fymediatree["block"] = {
 
 fymediatree["complete"] = {
     "message" : [
-        "Thank you for choosing FYMedia. We will get back to you shortly confirming the date of your install via email!",
+        "Thank you for choosing FYMedia. We will get back to you shortly confirming the date of your install via *email*!",
         "1. Hang up the phone."
     ],
     "choices" : (
         ("exit", "It looks like this might be pretty easy."),
     ),
-    "flag" : ("setup", 3)
+    "flag" : "setup1"
 }

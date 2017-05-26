@@ -13,6 +13,7 @@ class GameState:
     network_status = "NO CONNECTION"
     flags = set()
 
+    event = None
     user_input = ""
     current_message = []
     previous_message = []

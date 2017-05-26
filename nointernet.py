@@ -13,7 +13,9 @@ import string
 from gamestate import GameState
 from fymediatree import fymediatree
 from neighbourtree import neighbour_norm_tree
+from cabletree import cable_appointment_1
 from lookuptable import lookup_table
+from currenttable import current_table
 
 
 QUOTES = [
@@ -35,13 +37,6 @@ QUOTES = [
     ["Patience is bitter, but its fruit is sweet.", "Aristotle"],
     ["Knowing trees, I understand the meaning of patience.", "Knowing grass, I can appreciate persistence.", "Hal Borland"]
 ]
-
-def set_partial_network():
-    GameState.network_status = "WEAK CONNECTION"
-
-EFFECTS = {
-    "partial" : set_partial_network
-}
 
 def typeout(stdscr, string, y, x, delay=0.05):
     i = 0
@@ -108,15 +103,16 @@ def respond_conversation(index):
         pass
 
 def test_email(stdscr):
-    success = random.randint(0, 9) < (2 if not GameState.debug else 10) # 20% chance
+    success = random.randint(0, 9) < (5 if not GameState.debug else 10) # 50% chance
     wait(stdscr, ["Connecting to network...", "Loading browser page...", "Opening email...", "SUCCESS" if success else "UNAVAILABLE"])
     return success
 
 def check_email(stdscr):
     if "partial" in GameState.flags:
         if test_email(stdscr):
-            if "setup" in GameState.flags:
-                pass
+            if set(["setup1"]) <= GameState.flags:
+                GameState.current_message = ["You see an email from *FYMedia* saying that your appointment has been confirmed.", "The appointment will arrive three days from the day you called in."]
+                GameState.flags.add("check1")
     else:
         GameState.current_message = ["You have no internet to check email."]
 
@@ -154,6 +150,30 @@ def input_validator(key):
         return curses.KEY_BACKSPACE
     return key
 
+def current_event():
+    for flags, text in current_table[::-1]:
+        if set(flags) <= GameState.flags:
+            GameState.current_message = text
+            break
+
+def set_partial_network():
+    GameState.network_status = "WEAK CONNECTION"
+
+def first_appointment():
+    if "check1" in GameState.flags:
+        start_conversation(cable_appointment_1)
+        GameState.current_message = GameState.conversation_log
+    else:
+        GameState.current_message = ["You are startled by a loud knocking sound but can't be bothered to get up and check it out. You probably shouldn't have played League of Skill all night.", "", "When you finally wake up, you realized that the knocking sound was probably the cable guy! You missed it. Looks like you'll have to reschedule another appointment..."]
+
+def schedule_cable_guy():
+    GameState.event = (GameState.days + 6, first_appointment)
+
+EFFECTS = {
+    "partial" : set_partial_network,
+    "setup1" : schedule_cable_guy
+}
+
 def main(stdscr):
     # Setup
     pygame.mixer.init()
@@ -179,7 +199,8 @@ def main(stdscr):
     status_window = curses.newwin(1, 80, height // 2 - 19, width // 2 - 40)
 
     # Initialize the first message
-    GameState.current_message = ["You moved to a new apartment complex and have no access to internet. But fear not, you are a competent, young adult! There's nothing you can't handle with a bit of resolve and patience. Your goal is to get your internet installed by FYMedia.", "", "Type 'help' for a list of commands."]
+    GameState.current_message = []
+    current_event()
 
     # Game loop
     while GameState.running:
@@ -209,6 +230,10 @@ def main(stdscr):
                         wait(stdscr, QUOTES[quote_index % len(QUOTES)])
                     quote_index += 1
                     GameState.days += 1
+                    if GameState.event and GameState.days == GameState.event[0]:
+                        GameState.event[1]()
+                    else:
+                        current_event()
                 elif command[0] == "days":
                     GameState.current_message = [
                         "It's been %d days since you haven't had internet." % int(GameState.days / 2)
@@ -220,6 +245,8 @@ def main(stdscr):
                         GameState.current_message.append(sass_quote)
                 elif command[0] == "back":
                     GameState.current_message = GameState.previous_message
+                elif command[0] == "current":
+                    current_event()
                 elif command[0] == "email":
                     check_email(stdscr)
                 elif command[0] == "conversation":
@@ -229,14 +256,15 @@ def main(stdscr):
                         GameState.current_message = ["You aren't holding any conversations at the moment."]
                 elif command[0] == "help":
                     GameState.current_message = [
-                        "lookup [thing] - Find out information about a thing\n" +
-                        "call [phone number] - Calls the company.\n" +
-                        "wait - Wait one day.\n" +
-                        "days - Returns number of days past since no internet.\n" +
-                        "back - restore the message that came before.\n" +
-                        "exit/quit - Quit the game.\n" +
-                        "email - Check your email (needs internet to function)" +
-                        "conversation - Return to the conversation if there is one ongoing"
+                        "lookup [thing] - Find out information about a thing",
+                        "call [phone number] - Calls the company.",
+                        "wait - Wait one day.",
+                        "days - Returns number of days past since no internet.",
+                        "back - restore the message that came before.",
+                        "exit/quit - Quit the game.",
+                        "email - Check your email (needs internet to function)",
+                        "conversation - Return to the conversation if there is one ongoing",
+                        "current - Return to the current event."
                     ]
                 elif command[0] == "lookup":
                     if len(command) > 1:
@@ -311,7 +339,10 @@ def main(stdscr):
 
             # Draw buffer to screen
             for i, line in enumerate(lines):
-                text_window.addstr(1 + i, 1, line)
+                text_window.addstr(1 + i, 1, line.replace("*", ""))
+                # Add bolding
+                for j, match in enumerate(re.finditer(r"\*(.+?)\*", line)):
+                    text_window.addstr(1 + i, 1 + match.start() - j * 2, match.group(1), curses.A_BOLD)
 
         # Draw rectangle
         text_window.border()
