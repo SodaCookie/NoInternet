@@ -27,5 +27,11 @@ lookup_table = {
     ],
     "internet" : [
         "You long for the connection. The air itself doesn't feel right if there aren't high-frequency electromagnetic waves swirling around your head. Hopefully, you can get all this ISP business sorted out quickly."
+    ],
+    "apartment" : [
+        "Your crown jewel. Finally, you have a great place to live in. If only you can get the internet to work."
+    ],
+    "rex" : [
+        "This guy is a modern day Hagrid. The only time you've encountered people of this height was in pictures on the internet. Good thing he seems friendly."
     ]
 }

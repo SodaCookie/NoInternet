@@ -11,7 +11,7 @@ import subprocess
 import string
 
 from gamestate import GameState
-from fymediatree import fymediatree
+from fymediatree import *
 from neighbourtree import neighbour_norm_tree
 from cabletree import cable_appointment_1
 from lookuptable import lookup_table
@@ -81,6 +81,7 @@ def start_conversation(dialog_tree):
     GameState.conversation_node = "main"
     GameState.conversation_log = []
     step_conversation()
+    GameState.current_message = GameState.conversation_log
 
 def respond_conversation(index):
     node = GameState.conversation_tree[GameState.conversation_node]
@@ -104,7 +105,7 @@ def respond_conversation(index):
 
 def test_email(stdscr):
     success = random.randint(0, 9) < (5 if not GameState.debug else 10) # 50% chance
-    wait(stdscr, ["Connecting to network...", "Loading browser page...", "Opening email...", "SUCCESS" if success else "UNAVAILABLE"])
+    wait(stdscr, ["Connecting to network...", "Loading browser page...", "Openning email...", "SUCCESS" if success else "UNAVAILABLE"])
     return success
 
 def check_email(stdscr):
@@ -121,10 +122,10 @@ def start_call(dialog_tree):
     pygame.mixer.music.load("elevator.wav")
     pygame.mixer.music.play()
     delay = random.randrange(10, 20)
-    timer = threading.Timer(delay, stop_music)
+    timer = threading.Timer(delay, stop_idle_music)
     timer.setDaemon(True)
     timer.start()
-    timer = threading.Timer(delay + 0.5, start_conversation)
+    timer = threading.Timer(delay + 0.5, start_conversation, args=(dialog_tree,))
     timer.setDaemon(True)
     timer.start()
     GameState.phone_on = True
@@ -162,16 +163,19 @@ def set_partial_network():
 def first_appointment():
     if "check1" in GameState.flags:
         start_conversation(cable_appointment_1)
-        GameState.current_message = GameState.conversation_log
     else:
         GameState.current_message = ["You are startled by a loud knocking sound but can't be bothered to get up and check it out. You probably shouldn't have played League of Skill all night.", "", "When you finally wake up, you realized that the knocking sound was probably the cable guy! You missed it. Looks like you'll have to reschedule another appointment..."]
 
 def schedule_cable_guy():
     GameState.event = (GameState.days + 6, first_appointment)
 
+def call_fymedia_representative():
+    start_call(fymediareptree)
+
 EFFECTS = {
     "partial" : set_partial_network,
-    "setup1" : schedule_cable_guy
+    "setup1" : schedule_cable_guy,
+    "rep" : call_fymedia_representative
 }
 
 def main(stdscr):
@@ -282,7 +286,6 @@ def main(stdscr):
                         query = query.replace("-", "").replace("(", "").replace(")", "")
                         if query == "9932736782":
                             start_conversation(fymediatree)
-                            GameState.current_message = GameState.conversation_log
                         elif query == "5662734321":
                             if "partial" in GameState.flags:
                                 pass
@@ -290,7 +293,6 @@ def main(stdscr):
                                 pass
                             else:
                                 start_conversation(neighbour_norm_tree)
-                            GameState.current_message = GameState.conversation_log
                         elif query.isnumeric():
                             GameState.current_message = ["The number you have dialed is currently unavailable. Ensure that you have typed the correct number then hangup and redial the number.", "", "The phone display shows '%s'" % query]
                         else:
